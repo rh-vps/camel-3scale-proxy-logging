@@ -2,6 +2,10 @@ package in.manipalhospitals;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
+import org.apache.camel.Exchange;
+import org.apache.camel.Processor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
 import org.xml.sax.InputSource;
 
@@ -15,13 +19,6 @@ import javax.xml.transform.stream.StreamResult;
 import java.io.StringReader;
 import java.io.StringWriter;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-
-import org.apache.camel.Exchange;
-import org.apache.camel.Processor;
-
 public class PrettyLogger implements Processor {
 
     private static final ObjectWriter jsonWriter =
@@ -30,7 +27,7 @@ public class PrettyLogger implements Processor {
 
 
     @Override
-    public void process(Exchange exchange) throws Exception {
+    public void process(Exchange exchange) {
         String body = exchange.getIn().getBody(String.class);
         String contentType = exchange.getIn().getHeader(Exchange.CONTENT_TYPE, String.class);
 
@@ -51,8 +48,6 @@ public class PrettyLogger implements Processor {
         } catch (Exception e) {
             prettyBody = body; // fallback if parsing fails
         }
-
-//        exchange.getContext().getLogger().info(prettyBody);
         LOG.info(prettyBody);
 
     }

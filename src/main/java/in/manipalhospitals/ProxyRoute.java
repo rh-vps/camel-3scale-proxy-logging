@@ -1,18 +1,10 @@
 package in.manipalhospitals;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectWriter;
-
 import org.apache.camel.Exchange;
 import org.apache.camel.LoggingLevel;
-import org.apache.camel.Message;
 import org.apache.camel.builder.RouteBuilder;
-import org.apache.camel.model.dataformat.JsonLibrary;
 
 public class ProxyRoute extends RouteBuilder {
-
-
-    private static final ObjectWriter jsonWriter = new ObjectMapper().writerWithDefaultPrettyPrinter();
 
     @Override
     public void configure() {
@@ -25,7 +17,6 @@ public class ProxyRoute extends RouteBuilder {
                 ? "?ssl=true&keyStoreFile=/tls/keystore.jks&passphrase=changeit&trustStoreFile=/tls/keystore.jks"
                 : "");
 
-
         // Global error handling
         onException(Exception.class)
                 .handled(true)
@@ -35,22 +26,18 @@ public class ProxyRoute extends RouteBuilder {
                 .setBody(constant("{\"error\": \"Internal Server Error\"}"));
 
         from(fromUri)
-
-                // Process request
-//                .process(ProxyRoute::prettyPrintBody)
-
                 // Log incoming request
                 .log(">>> Incoming ${headers.CamelHttpMethod} request")
 
                 .log("Forwarding to: ${headers.CamelHttpScheme}://${headers.CamelHttpHost}:${headers.CamelHttpPort}${headers.CamelHttpPath}?${headers.CamelHttpQuery}")
 
-                // .log("Content-Type: ${headers.Content-Type}")
-                .log("Request Body: ${body}")
+                .log("Content-Type: ${headers.Content-Type}")
 
                 // Ensure original HTTP method is forwarded
                 .setHeader(Exchange.HTTP_METHOD, simple("${headers.CamelHttpMethod}"))
 
                 // Pretty print request safely (JSON/XML/plain)
+                .log("<<< Response code: ${header.CamelHttpResponseCode}")
                 .process(new PrettyLogger())
 
                 // Forward request to target
@@ -61,34 +48,10 @@ public class ProxyRoute extends RouteBuilder {
                         + "${headers." + Exchange.HTTP_PATH + "}"
                         + "?bridgeEndpoint=true&throwExceptionOnFailure=true")
 
-                // Process response
-//                .process(ProxyRoute::prettyPrintBody)
-
                 .process(new PrettyLogger())
 
                 // Final log of transformed response
                 .log("Response Body: ${body}");
 
     }
-
-
-    public static void prettyPrintBody(final Exchange exchange) {
-        final Message message = exchange.getIn();
-        final String body = message.getBody(String.class);
-        if (body != null && !body.isBlank()) {
-            try {
-                // Try JSON pretty-print first
-                String formatted = jsonWriter.writeValueAsString(
-                        new ObjectMapper().readValue(body, Object.class)
-                );
-                message.setBody(formatted);
-                exchange.getContext().createProducerTemplate().sendBody("log:pretty?level=INFO", formatted);
-            } catch (Exception e) {
-                // Fallback: plain text
-                exchange.getContext().createProducerTemplate().sendBody("log:pretty?level=INFO", body);
-            }
-        }
-    }
-
-
 }
