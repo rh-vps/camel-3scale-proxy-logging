@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: camel-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: camel-proxy
+  template:
+    metadata:
+      labels:
+        app: camel-proxy
+    spec:
+      containers:
+        - name: camel-proxy
+          resources: {}
+          image: image-registry.openshift-image-registry.svc:5000/myproject/camel-proxy:latest
+          ports:
+            - containerPort: 8443
+          env:
+            - name: ENABLE_HTTPS
+              value: "true"
+          volumeMounts:
+            - name: tls-secret
+              mountPath: /tls
+              readOnly: true
+      volumes:
+        - name: tls-secret
+          secret:
+            secretName: camel-proxy-tls
