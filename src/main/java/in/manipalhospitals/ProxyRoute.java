@@ -20,15 +20,32 @@ public class ProxyRoute extends RouteBuilder {
                     : "");
 
         from(fromUri)
-            .process(ProxyRoute::uppercase)
-            .log("Request : ${body}")
+            // Log incoming request
+            .log(">>> Incoming ${headers.CamelHttpMethod} request")
+            .log("Forwarding to: ${headers.CamelHttpScheme}://${headers.CamelHttpHost}:${headers.CamelHttpPort}${headers.CamelHttpPath}")
+            .log("Content-Type: ${headers.Content-Type}")
+            .log("Request Body: ${body}")
+
+            // Ensure original HTTP method is forwarded
+            .setHeader(Exchange.HTTP_METHOD, simple("${headers.CamelHttpMethod}"))
+
+            // Forward request to target
             .toD("netty-http:"
                 + "${headers." + Exchange.HTTP_SCHEME + "}://"
                 + "${headers." + Exchange.HTTP_HOST + "}:"
                 + "${headers." + Exchange.HTTP_PORT + "}"
-                + "${headers." + Exchange.HTTP_PATH + "}")
-            .log("Response : ${body}")
-            .process(ProxyRoute::uppercase);
+                + "${headers." + Exchange.HTTP_PATH + "}"
+                + "?bridgeEndpoint=true&throwExceptionOnFailure=false")
+
+            // Log response details
+            .log("<<< Response code: ${header.CamelHttpResponseCode}")
+            .log("Response Body before processing: ${body}")
+
+            // Process response (uppercase only after response is received)
+            .process(ProxyRoute::uppercase)
+
+            // Final log of transformed response
+            .log("Response Body after uppercase: ${body}");
     }
 
     public static void uppercase(final Exchange exchange) {
