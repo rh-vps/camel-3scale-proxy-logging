@@ -7,6 +7,7 @@ import org.apache.camel.Exchange;
 import org.apache.camel.LoggingLevel;
 import org.apache.camel.Message;
 import org.apache.camel.builder.RouteBuilder;
+import org.apache.camel.model.dataformat.JsonLibrary;
 
 public class ProxyRoute extends RouteBuilder {
 
@@ -21,10 +22,11 @@ public class ProxyRoute extends RouteBuilder {
 
         String fromUri = "netty-http:proxy://0.0.0.0:" + port
                 + (httpsEnabled.equalsIgnoreCase("true")
-                    ? "?ssl=true&keyStoreFile=/tls/keystore.jks&passphrase=changeit&trustStoreFile=/tls/keystore.jks"
-                    : "");
+                ? "?ssl=true&keyStoreFile=/tls/keystore.jks&passphrase=changeit&trustStoreFile=/tls/keystore.jks"
+                : "");
 
-        // 🔹 Global error handling
+
+        // Global error handling
         onException(Exception.class)
                 .handled(true)
                 .log(LoggingLevel.ERROR, "Error occurred: ${exception.message}")
@@ -34,33 +36,43 @@ public class ProxyRoute extends RouteBuilder {
 
         from(fromUri)
 
-            // Process request
-            .process(ProxyRoute::prettyPrintBody)
-            
-            // Log incoming request
-            .log(">>> Incoming ${headers.CamelHttpMethod} request")
+                // Process request
+//                .process(ProxyRoute::prettyPrintBody)
 
-            .log("Forwarding to: ${headers.CamelHttpScheme}://${headers.CamelHttpHost}:${headers.CamelHttpPort}${headers.CamelHttpPath}?${headers.CamelHttpQuery}")
+                // Log incoming request
+                .log(">>> Incoming ${headers.CamelHttpMethod} request")
 
-            // .log("Content-Type: ${headers.Content-Type}")
-            .log("Request Body: ${body}")
+                .log("Forwarding to: ${headers.CamelHttpScheme}://${headers.CamelHttpHost}:${headers.CamelHttpPort}${headers.CamelHttpPath}?${headers.CamelHttpQuery}")
 
-            // Ensure original HTTP method is forwarded
-            .setHeader(Exchange.HTTP_METHOD, simple("${headers.CamelHttpMethod}"))
+                // .log("Content-Type: ${headers.Content-Type}")
+                .log("Request Body: ${body}")
 
-            // Forward request to target
-            .toD("netty-http:"
-                + "${headers." + Exchange.HTTP_SCHEME + "}://"
-                + "${headers." + Exchange.HTTP_HOST + "}:"
-                + "${headers." + Exchange.HTTP_PORT + "}"
-                + "${headers." + Exchange.HTTP_PATH + "}"
-                + "?bridgeEndpoint=true&throwExceptionOnFailure=true")
+                // Ensure original HTTP method is forwarded
+                .setHeader(Exchange.HTTP_METHOD, simple("${headers.CamelHttpMethod}"))
 
-            // Process response
-            .process(ProxyRoute::prettyPrintBody)
+                // Format and log request body as pretty JSON
+                .marshal().json(JsonLibrary.Jackson, true)
+                .log(LoggingLevel.INFO, "Request Body Marshall :\n${body}")
+                .unmarshal().json(JsonLibrary.Jackson)
 
-            // Final log of transformed response
-            .log("Response Body: ${body}");
+                // Forward request to target
+                .toD("netty-http:"
+                        + "${headers." + Exchange.HTTP_SCHEME + "}://"
+                        + "${headers." + Exchange.HTTP_HOST + "}:"
+                        + "${headers." + Exchange.HTTP_PORT + "}"
+                        + "${headers." + Exchange.HTTP_PATH + "}"
+                        + "?bridgeEndpoint=true&throwExceptionOnFailure=true")
+
+                // Process response
+//                .process(ProxyRoute::prettyPrintBody)
+
+                // Final log of transformed response
+                .marshal().json(JsonLibrary.Jackson, true)
+                .log("Response Body Marshall :\n${body}")
+                .unmarshal().json(JsonLibrary.Jackson)
+
+                // Final log of transformed response
+                .log("Response Body: ${body}");
 
     }
 
@@ -72,7 +84,7 @@ public class ProxyRoute extends RouteBuilder {
             try {
                 // Try JSON pretty-print first
                 String formatted = jsonWriter.writeValueAsString(
-                    new ObjectMapper().readValue(body, Object.class)
+                        new ObjectMapper().readValue(body, Object.class)
                 );
                 message.setBody(formatted);
                 exchange.getContext().createProducerTemplate().sendBody("log:pretty?level=INFO", formatted);
@@ -82,7 +94,6 @@ public class ProxyRoute extends RouteBuilder {
             }
         }
     }
-
 
 
 }
