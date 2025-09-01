@@ -33,10 +33,16 @@ public class ProxyRoute extends RouteBuilder {
                 .setBody(constant("{\"error\": \"Internal Server Error\"}"));
 
         from(fromUri)
+
+            // Process request
+            .process(ProxyRoute::prettyPrintBody)
+            
             // Log incoming request
             .log(">>> Incoming ${headers.CamelHttpMethod} request")
+
             .log("Forwarding to: ${headers.CamelHttpScheme}://${headers.CamelHttpHost}:${headers.CamelHttpPort}${headers.CamelHttpPath}?${headers.CamelHttpQuery}")
-            .log("Content-Type: ${headers.Content-Type}")
+
+            // .log("Content-Type: ${headers.Content-Type}")
             .log("Request Body: ${body}")
 
             // Ensure original HTTP method is forwarded
