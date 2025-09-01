@@ -50,10 +50,8 @@ public class ProxyRoute extends RouteBuilder {
                 // Ensure original HTTP method is forwarded
                 .setHeader(Exchange.HTTP_METHOD, simple("${headers.CamelHttpMethod}"))
 
-                // Format and log request body as pretty JSON
-                .marshal().json(JsonLibrary.Jackson, true)
-                .log(LoggingLevel.INFO, "Request Body Marshall :\n${body}")
-                .unmarshal().json(JsonLibrary.Jackson)
+                // Pretty print request safely (JSON/XML/plain)
+                .process(new PrettyLogger())
 
                 // Forward request to target
                 .toD("netty-http:"
@@ -66,10 +64,7 @@ public class ProxyRoute extends RouteBuilder {
                 // Process response
 //                .process(ProxyRoute::prettyPrintBody)
 
-                // Final log of transformed response
-                .marshal().json(JsonLibrary.Jackson, true)
-                .log("Response Body Marshall :\n${body}")
-                .unmarshal().json(JsonLibrary.Jackson)
+                .process(new PrettyLogger())
 
                 // Final log of transformed response
                 .log("Response Body: ${body}");
