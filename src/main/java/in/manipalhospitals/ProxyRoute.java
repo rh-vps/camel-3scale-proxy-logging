@@ -1,12 +1,16 @@
 package in.manipalhospitals;
 
-import java.util.Locale;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
 
 import org.apache.camel.Exchange;
 import org.apache.camel.Message;
 import org.apache.camel.builder.RouteBuilder;
 
 public class ProxyRoute extends RouteBuilder {
+
+
+    private static final ObjectWriter jsonWriter = new ObjectMapper().writerWithDefaultPrettyPrinter();
 
     @Override
     public void configure() {
@@ -22,7 +26,7 @@ public class ProxyRoute extends RouteBuilder {
         from(fromUri)
             // Log incoming request
             .log(">>> Incoming ${headers.CamelHttpMethod} request")
-            .log("Forwarding to: ${headers.CamelHttpScheme}://${headers.CamelHttpHost}:${headers.CamelHttpPort}${headers.CamelHttpPath}")
+            .log("Forwarding to: ${headers.CamelHttpScheme}://${headers.CamelHttpHost}:${headers.CamelHttpPort}${headers.CamelHttpPath}?${headers.CamelHttpQuery}")
             .log("Content-Type: ${headers.Content-Type}")
             .log("Request Body: ${body}")
 
@@ -37,22 +41,30 @@ public class ProxyRoute extends RouteBuilder {
                 + "${headers." + Exchange.HTTP_PATH + "}"
                 + "?bridgeEndpoint=true&throwExceptionOnFailure=false")
 
-            // Log response details
-            .log("<<< Response code: ${header.CamelHttpResponseCode}")
-            .log("Response Body before processing: ${body}")
-
-            // Process response (uppercase only after response is received)
-            .process(ProxyRoute::uppercase)
+            // Process response
+            .process(ProxyRoute::prettyPrintBody)
 
             // Final log of transformed response
-            .log("Response Body after uppercase: ${body}");
+            .log("Response Body: ${body}");
     }
 
-    public static void uppercase(final Exchange exchange) {
+
+    public static void prettyPrintBody(final Exchange exchange) {
         final Message message = exchange.getIn();
         final String body = message.getBody(String.class);
-        if (body != null) {
-            message.setBody(body.toUpperCase(Locale.US));
+        if (body != null && !body.isBlank()) {
+            try {
+                // Try JSON pretty-print first
+                String formatted = jsonWriter.writeValueAsString(
+                    new ObjectMapper().readValue(body, Object.class)
+                );
+                message.setBody(formatted);
+                exchange.getContext().createProducerTemplate().sendBody("log:pretty?level=INFO", formatted);
+            } catch (Exception e) {
+                // Fallback: plain text
+                exchange.getContext().createProducerTemplate().sendBody("log:pretty?level=INFO", body);
+            }
         }
-    }
+    }    
+
 }
