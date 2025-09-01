@@ -18,12 +18,22 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.util.HashMap;
+import java.util.Map;
 
 public class PrettyLogger implements Processor {
 
-    private static final ObjectWriter jsonWriter =
-            new ObjectMapper().writerWithDefaultPrettyPrinter();
-    private static final Logger LOG = LoggerFactory.getLogger(PrettyLogger.class);
+    private final String label;
+    private final ObjectWriter jsonWriter;
+    private final Logger LOG;
+    private final ObjectMapper mapper;
+
+    public PrettyLogger(String label) {
+        this.label = label;
+        this.jsonWriter = new ObjectMapper().writerWithDefaultPrettyPrinter();
+        this.mapper = new ObjectMapper();
+        this.LOG = LoggerFactory.getLogger(PrettyLogger.class);
+    }
 
 
     @Override
@@ -45,11 +55,22 @@ public class PrettyLogger implements Processor {
                 // Fallback: just raw string
                 prettyBody = body;
             }
-        } catch (Exception e) {
-            prettyBody = body; // fallback if parsing fails
-        }
-        LOG.info(prettyBody);
 
+            // Prepare structured log
+            Map<String, Object> logEvent = new HashMap<>();
+            logEvent.put("eventType", label);
+            logEvent.put("routeId", exchange.getFromRouteId());
+            logEvent.put("exchangeId", exchange.getExchangeId());
+            logEvent.put("body", prettyBody);
+            logEvent.put("headers", exchange.getIn().getHeaders());
+
+            // Log JSON (good for Kibana)
+            String logJson = mapper.writeValueAsString(logEvent);
+            LOG.info(logJson);
+
+        } catch (Exception e) {
+            LOG.error("Failed to log {} body", label, e);
+        }
     }
 
     private String formatXml(String xml) throws Exception {

@@ -26,19 +26,10 @@ public class ProxyRoute extends RouteBuilder {
                 .setBody(constant("{\"error\": \"Internal Server Error\"}"));
 
         from(fromUri)
-                // Log incoming request
-                .log(">>> Incoming ${headers.CamelHttpMethod} request")
-
-                .log("Forwarding to: ${headers.CamelHttpScheme}://${headers.CamelHttpHost}:${headers.CamelHttpPort}${headers.CamelHttpPath}?${headers.CamelHttpQuery}")
-
-                .log("Content-Type: ${headers.Content-Type}")
-
                 // Ensure original HTTP method is forwarded
                 .setHeader(Exchange.HTTP_METHOD, simple("${headers.CamelHttpMethod}"))
 
-                // Pretty print request safely (JSON/XML/plain)
-                .log("<<< Response code: ${header.CamelHttpResponseCode}")
-                .process(new PrettyLogger())
+                .process(new PrettyLogger("Request"))
 
                 // Forward request to target
                 .toD("netty-http:"
@@ -48,10 +39,7 @@ public class ProxyRoute extends RouteBuilder {
                         + "${headers." + Exchange.HTTP_PATH + "}"
                         + "?bridgeEndpoint=true&throwExceptionOnFailure=true")
 
-                .process(new PrettyLogger())
-
-                // Final log of transformed response
-                .log("Response Body: ${body}");
+                .process(new PrettyLogger("Response"));
 
     }
 }
