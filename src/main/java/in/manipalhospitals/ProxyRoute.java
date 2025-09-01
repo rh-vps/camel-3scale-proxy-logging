@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 
 import org.apache.camel.Exchange;
+import org.apache.camel.LoggingLevel;
 import org.apache.camel.Message;
 import org.apache.camel.builder.RouteBuilder;
 
@@ -23,6 +24,14 @@ public class ProxyRoute extends RouteBuilder {
                     ? "?ssl=true&keyStoreFile=/tls/keystore.jks&passphrase=changeit&trustStoreFile=/tls/keystore.jks"
                     : "");
 
+        // 🔹 Global error handling
+        onException(Exception.class)
+                .handled(true)
+                .log(LoggingLevel.ERROR, "Error occurred: ${exception.message}")
+                .setHeader(Exchange.HTTP_RESPONSE_CODE, constant(500))
+                .setHeader(Exchange.CONTENT_TYPE, constant("application/json"))
+                .setBody(constant("{\"error\": \"Internal Server Error\"}"));
+
         from(fromUri)
             // Log incoming request
             .log(">>> Incoming ${headers.CamelHttpMethod} request")
@@ -39,13 +48,14 @@ public class ProxyRoute extends RouteBuilder {
                 + "${headers." + Exchange.HTTP_HOST + "}:"
                 + "${headers." + Exchange.HTTP_PORT + "}"
                 + "${headers." + Exchange.HTTP_PATH + "}"
-                + "?bridgeEndpoint=true&throwExceptionOnFailure=false")
+                + "?bridgeEndpoint=true&throwExceptionOnFailure=true")
 
             // Process response
             .process(ProxyRoute::prettyPrintBody)
 
             // Final log of transformed response
             .log("Response Body: ${body}");
+
     }
 
 
@@ -65,6 +75,8 @@ public class ProxyRoute extends RouteBuilder {
                 exchange.getContext().createProducerTemplate().sendBody("log:pretty?level=INFO", body);
             }
         }
-    }    
+    }
+
+
 
 }
