@@ -9,13 +9,13 @@ public class ProxyRoute extends RouteBuilder {
     @Override
     public void configure() {
         // Use environment variables for flexibility
-        String httpsEnabled = System.getenv().getOrDefault("ENABLE_HTTPS", "false");
-        String port = httpsEnabled.equalsIgnoreCase("true") ? "8443" : "8080";
+        boolean httpsEnabled = Boolean.parseBoolean(System.getenv().getOrDefault("ENABLE_HTTPS", "true"));
+        int port = httpsEnabled ? 8443 : 8080;
 
-        String fromUri = "netty-http:proxy://0.0.0.0:" + port
-                + (httpsEnabled.equalsIgnoreCase("true")
-                ? "?ssl=true&keyStoreFile=/tls/keystore.jks&passphrase=changeit&trustStoreFile=/tls/keystore.jks"
-                : "");
+        // Use http:// or https:// instead of proxy://
+        String fromUri = httpsEnabled
+                ? "netty-http:https://0.0.0.0:" + port + "?sslContextParameters=#sslContextParameters"
+                : "netty-http:http://0.0.0.0:" + port;
 
         // Global error handling
         onException(Exception.class)
@@ -26,20 +26,15 @@ public class ProxyRoute extends RouteBuilder {
                 .setBody(constant("{\"error\": \"Internal Server Error\"}"));
 
         from(fromUri)
-                // Ensure original HTTP method is forwarded
+                // Preserve original HTTP method
                 .setHeader(Exchange.HTTP_METHOD, simple("${headers.CamelHttpMethod}"))
 
                 .process(new PrettyLogger("Request"))
 
-                // Forward request to target
-                .toD("netty-http:"
-                        + "${headers." + Exchange.HTTP_SCHEME + "}://"
-                        + "${headers." + Exchange.HTTP_HOST + "}:"
-                        + "${headers." + Exchange.HTTP_PORT + "}"
-                        + "${headers." + Exchange.HTTP_PATH + "}"
+                // Forward request to target dynamically
+                .toD("netty-http:${headers.CamelHttpScheme}://${headers.CamelHttpHost}:${headers.CamelHttpPort}${headers.CamelHttpPath}"
                         + "?bridgeEndpoint=true&throwExceptionOnFailure=true")
 
                 .process(new PrettyLogger("Response"));
-
     }
 }
